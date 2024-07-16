@@ -88,7 +88,7 @@ impl FillRule {
     }
 }
 
-pub fn polygon_interior<T>(poly: Polygon<T>, spec: CanvasSpec, rule: FillRule) -> Array2<bool>
+pub fn fill_polygon<T>(poly: Polygon<T>, spec: CanvasSpec, rule: FillRule) -> Array2<bool>
 where
     T: Copy + Num + PartialOrd + RoundToUsize + FromPrimitive + std::fmt::Debug + AsPrimitive<f64>,
 {
@@ -146,7 +146,7 @@ mod test {
             width: 8,
             height: 10,
         };
-        let result = polygon_interior(poly, spec, FillRule::NonZero);
+        let result = fill_polygon(poly, spec, FillRule::NonZero);
         println!("{:?}", result);
         assert!(result[[0, 0]]);
         assert!(result[[9, 0]]);
@@ -161,7 +161,7 @@ mod test {
             width: 8,
             height: 10,
         };
-        let result = polygon_interior(poly, spec, FillRule::NonZero);
+        let result = fill_polygon(poly, spec, FillRule::NonZero);
         println!("{:?}", result);
         assert!(result[[0, 0]]);
         assert!(result[[9, 0]]);
@@ -177,7 +177,7 @@ mod test {
             width: 8,
             height: 10,
         };
-        let result = polygon_interior(poly, spec, FillRule::NonZero);
+        let result = fill_polygon(poly, spec, FillRule::NonZero);
         println!("{:?}", result);
         assert!(result[[0, 1]]);
         assert!(!result[[9, 0]]);
@@ -192,7 +192,7 @@ mod test {
             width: 8,
             height: 10,
         };
-        let result = polygon_interior(poly, spec, FillRule::NonZero);
+        let result = fill_polygon(poly, spec, FillRule::NonZero);
         println!("{:?}", result);
         assert!(result[[0, 1]]);
         assert!(!result[[9, 0]]);
@@ -207,7 +207,7 @@ mod test {
             width: 20,
             height: 15,
         };
-        let result = polygon_interior(poly, spec, FillRule::NonZero);
+        let result = fill_polygon(poly, spec, FillRule::NonZero);
         for row in 0..15 {
             for col in 0..20 {
                 print!("{} ", if result[[row, col]] { 1 } else { 0 });
@@ -225,7 +225,7 @@ mod test {
             width: 20,
             height: 15,
         };
-        let result = polygon_interior(poly, spec, FillRule::EvenOdd);
+        let result = fill_polygon(poly, spec, FillRule::EvenOdd);
         for row in 0..15 {
             for col in 0..20 {
                 print!("{} ", if result[[row, col]] { 1 } else { 0 });
