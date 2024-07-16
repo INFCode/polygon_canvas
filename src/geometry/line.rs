@@ -1,4 +1,4 @@
-use num_traits::Num;
+use num_traits::{AsPrimitive, Num};
 
 use super::Point;
 
@@ -16,13 +16,13 @@ impl<T> Line<T> {
 
 impl<T> Line<T>
 where
-    T: Copy + Num,
+    T: Copy + Num + AsPrimitive<f64>,
 {
-    pub fn inv_slope(&self) -> Option<T> {
+    pub fn inv_slope(&self) -> Option<f64> {
         if self.start.y == self.end.y {
             None // Vertical line
         } else {
-            Some((self.end.x - self.start.x) / (self.end.y - self.start.y))
+            Some((self.end.x - self.start.x).as_() / (self.end.y - self.start.y).as_())
         }
     }
 }

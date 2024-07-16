@@ -23,8 +23,24 @@ impl<T: Copy> Polygon<T> {
         }
     }
 
-    pub fn add_point(&mut self, point: Point<T>) {
+    pub fn from_vec(v: Vec<T>) -> Option<Self> {
+        if v.len() % 2 != 0 {
+            return None;
+        }
+
+        let mut poly = Self::new();
+        for i in (0..v.len()).step_by(2) {
+            poly.add_point(Point {
+                x: v[i],
+                y: v[i + 1],
+            });
+        }
+        Some(poly)
+    }
+
+    pub fn add_point(&mut self, point: Point<T>) -> &mut Self {
         self.vertices.push(point);
+        self
     }
 
     pub fn edges(&self) -> impl Iterator<Item = Line<T>> + '_ {
