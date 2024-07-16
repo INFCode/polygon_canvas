@@ -46,8 +46,8 @@ impl ScanlineEdge {
 
     fn get_intersect(&self, rule: FillRule) -> (f64, bool) {
         match rule {
-            FillRule::NonZero => (self.x, true),
-            FillRule::EvenOdd => (self.x, self.is_upwards),
+            FillRule::NonZero => (self.x, self.is_upwards),
+            FillRule::EvenOdd => (self.x, true),
         }
     }
 }
@@ -92,15 +92,16 @@ pub fn polygon_interior<T>(poly: Polygon<T>, spec: CanvasSpec, rule: FillRule) -
 where
     T: Copy + Num + PartialOrd + RoundToUsize + FromPrimitive + std::fmt::Debug + AsPrimitive<f64>,
 {
-    let mut mask = Array2::<bool>::from_elem((spec.y, spec.x), false);
+    let mut mask = Array2::<bool>::from_elem((spec.height, spec.width), false);
 
     // build NET
     let net = net_from_polygon(poly);
     //println!("net = {:?}", net);
+    //println!();
 
     let mut aet = Aet::new();
 
-    for row in 0..spec.y {
+    for row in 0..spec.height {
         aet.iter_mut().for_each(|p| p.shift_down());
         if let Some(new) = net.get(&row) {
             aet.extend(new);
@@ -117,12 +118,14 @@ where
             .collect::<Vec<(f64, bool)>>();
         points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         //println!("points = {:?}", points);
+        //println!();
 
         let mut idx = 0;
         let mut track = 0;
-        for col in 0..spec.x {
+        for col in 0..spec.width {
             while idx < points.len() && col as f64 >= points[idx].0 {
                 track += points[idx].1 as i32 * 2 - 1; // true mapped to 1 and false mapped to -1
+                println!("{} {}", col, track);
                 idx += 1;
             }
             mask[[row, col]] = rule.check(track);
@@ -138,8 +141,11 @@ mod test {
 
     #[test]
     fn test_scanline_full_float() {
-        let poly = Polygon::from_vec(vec![0.0, 0.0, 7.0, 0.0, 7.0, 9.0, 0.0, 9.0]).unwrap();
-        let spec = CanvasSpec { x: 8, y: 10 };
+        let poly = Polygon::from_vec(vec![0.0, 0.0, 8.0, 0.0, 8.0, 10.0, 0.0, 10.0]).unwrap();
+        let spec = CanvasSpec {
+            width: 8,
+            height: 10,
+        };
         let result = polygon_interior(poly, spec, FillRule::NonZero);
         println!("{:?}", result);
         assert!(result[[0, 0]]);
@@ -150,8 +156,11 @@ mod test {
 
     #[test]
     fn test_scanline_full_int() {
-        let poly = Polygon::from_vec(vec![0, 0, 7, 0, 7, 9, 0, 9]).unwrap();
-        let spec = CanvasSpec { x: 8, y: 10 };
+        let poly = Polygon::from_vec(vec![0, 0, 8, 0, 8, 10, 0, 10]).unwrap();
+        let spec = CanvasSpec {
+            width: 8,
+            height: 10,
+        };
         let result = polygon_interior(poly, spec, FillRule::NonZero);
         println!("{:?}", result);
         assert!(result[[0, 0]]);
@@ -163,8 +172,11 @@ mod test {
     #[test]
     fn test_scanline_triangle_float() {
         // lower triangle
-        let poly = Polygon::from_vec(vec![0.0, 0.0, 7.0, 0.0, 7.0, 9.0]).unwrap();
-        let spec = CanvasSpec { x: 8, y: 10 };
+        let poly = Polygon::from_vec(vec![0.0, 0.0, 8.0, 0.0, 8.0, 10.0]).unwrap();
+        let spec = CanvasSpec {
+            width: 8,
+            height: 10,
+        };
         let result = polygon_interior(poly, spec, FillRule::NonZero);
         println!("{:?}", result);
         assert!(result[[0, 1]]);
@@ -175,13 +187,52 @@ mod test {
 
     #[test]
     fn test_scanline_triangle_int() {
-        let poly = Polygon::from_vec(vec![0, 0, 7, 0, 7, 9]).unwrap();
-        let spec = CanvasSpec { x: 8, y: 10 };
+        let poly = Polygon::from_vec(vec![0, 0, 8, 0, 8, 10]).unwrap();
+        let spec = CanvasSpec {
+            width: 8,
+            height: 10,
+        };
         let result = polygon_interior(poly, spec, FillRule::NonZero);
         println!("{:?}", result);
         assert!(result[[0, 1]]);
         assert!(!result[[9, 0]]);
         assert!(result[[5, 5]]);
         assert!(result[[8, 7]]);
+    }
+
+    #[test]
+    fn test_scanline_rule_non_zero() {
+        let poly = Polygon::from_vec(vec![0, 0, 20, 0, 3, 15, 13, 3, 8, 3, 18, 15]).unwrap();
+        let spec = CanvasSpec {
+            width: 20,
+            height: 15,
+        };
+        let result = polygon_interior(poly, spec, FillRule::NonZero);
+        for row in 0..15 {
+            for col in 0..20 {
+                print!("{} ", if result[[row, col]] { 1 } else { 0 });
+            }
+            println!()
+        }
+        // no hole in self-intersect area
+        assert!(result[[7, 10]]);
+    }
+
+    #[test]
+    fn test_scanline_rule_even_odd() {
+        let poly = Polygon::from_vec(vec![0, 0, 20, 0, 3, 15, 13, 3, 8, 3, 18, 15]).unwrap();
+        let spec = CanvasSpec {
+            width: 20,
+            height: 15,
+        };
+        let result = polygon_interior(poly, spec, FillRule::EvenOdd);
+        for row in 0..15 {
+            for col in 0..20 {
+                print!("{} ", if result[[row, col]] { 1 } else { 0 });
+            }
+            println!()
+        }
+        // hole in self-intersect area
+        assert!(!result[[7, 10]]);
     }
 }

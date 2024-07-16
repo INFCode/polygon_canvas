@@ -10,8 +10,8 @@ pub struct Canvas<T> {
 
 #[derive(Debug)]
 pub struct CanvasSpec {
-    pub x: usize,
-    pub y: usize,
+    pub width: usize,
+    pub height: usize,
 }
 
 impl<T> Canvas<T>
@@ -20,7 +20,7 @@ where
 {
     pub fn from_spec(spec: &CanvasSpec) -> Self {
         Canvas {
-            canvas: Array2::<T>::from_elem((spec.x, spec.y), T::zero()),
+            canvas: Array2::<T>::from_elem((spec.width, spec.height), T::zero()),
         }
     }
 }
