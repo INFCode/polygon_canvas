@@ -13,7 +13,7 @@ struct ScanlineEdge {
     y_max: usize,
     x: f64,
     delta_x: f64,
-    is_upwards: bool,
+    direction: i8,
 }
 
 impl ScanlineEdge {
@@ -32,7 +32,7 @@ impl ScanlineEdge {
                 y_max: y_max.floor_to_usize(),
                 x: x.as_() + (y_min.ceil_to_self() - y_min).as_() * inv_slope,
                 delta_x: inv_slope,
-                is_upwards: line.start.y < line.end.y,
+                direction: if line.start.y < line.end.y { 1 } else { -1 },
             })
         } else {
             // horizontal
@@ -44,10 +44,10 @@ impl ScanlineEdge {
         self.x = self.delta_x + self.x;
     }
 
-    fn get_intersect(&self, rule: FillRule) -> (f64, bool) {
+    fn get_intersect(&self, rule: FillRule) -> (f64, i8) {
         match rule {
-            FillRule::NonZero => (self.x, self.is_upwards),
-            FillRule::EvenOdd => (self.x, true),
+            FillRule::NonZero => (self.x, self.direction),
+            FillRule::EvenOdd => (self.x, 1),
         }
     }
 }
@@ -63,8 +63,8 @@ where
     for line in poly.edges() {
         if let Some(edge) = ScanlineEdge::from_line(line) {
             net.entry(line.y_min_point().y.ceil_to_usize())
-                .and_modify(|vec| vec.push(edge))
-                .or_insert_with(|| vec![edge]);
+                .or_insert_with(Vec::new)
+                .push(edge)
         }
     }
     net
@@ -104,7 +104,7 @@ where
     for row in 0..spec.height {
         aet.iter_mut().for_each(|p| p.shift_down());
         if let Some(new) = net.get(&row) {
-            aet.extend(new);
+            aet.extend(new.iter().cloned());
         }
         aet.retain(|l| l.y_max >= row);
         if aet.len() == 0 {
@@ -115,7 +115,7 @@ where
         let mut points = aet
             .iter()
             .map(|e| e.get_intersect(rule))
-            .collect::<Vec<(f64, bool)>>();
+            .collect::<Vec<(f64, i8)>>();
         points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         //println!("points = {:?}", points);
         //println!();
@@ -124,7 +124,7 @@ where
         let mut track = 0;
         for col in 0..spec.width {
             while idx < points.len() && col as f64 >= points[idx].0 {
-                track += points[idx].1 as i32 * 2 - 1; // true mapped to 1 and false mapped to -1
+                track += points[idx].1 as i32;
                 println!("{} {}", col, track);
                 idx += 1;
             }
