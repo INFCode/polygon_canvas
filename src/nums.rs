@@ -1,4 +1,4 @@
-use num_traits::{AsPrimitive, ToPrimitive};
+use num_traits::AsPrimitive;
 
 pub trait Round {
     fn round_to_self(&self) -> Self;
