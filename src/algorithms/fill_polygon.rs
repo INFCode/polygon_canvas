@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::usize;
 
+use crate::geometry::Point;
 use crate::geometry::{Line, Polygon};
 use crate::nums::RoundToUsize;
-use crate::{canvas::CanvasSpec, geometry::Point};
 use itertools::Itertools;
 use ndarray::{s, Array2};
 use num_traits::{AsPrimitive, FromPrimitive, Num};
+use palette::{blend::Blend, rgb::LinSrgba};
 
 // the internal data structre for scan line algorithm
 #[derive(Debug, Clone, Copy)]
@@ -56,7 +57,7 @@ impl ScanlineEdge {
 // New Edge Table
 type Net = HashMap<usize, Vec<ScanlineEdge>>;
 
-fn net_from_polygon<T>(poly: Polygon<T>) -> Net
+fn net_from_polygon<T>(poly: &Polygon<T>) -> Net
 where
     T: Copy + Num + PartialOrd + RoundToUsize + AsPrimitive<f64>,
 {
@@ -89,11 +90,15 @@ impl FillRule {
     }
 }
 
-pub fn fill_polygon<T>(poly: Polygon<T>, spec: CanvasSpec, rule: FillRule) -> Array2<bool>
-where
+pub fn fill_polygon<T>(
+    canvas: &mut Array2<LinSrgba>,
+    poly: &Polygon<T>,
+    color: LinSrgba,
+    rule: FillRule,
+) where
     T: Copy + Num + PartialOrd + RoundToUsize + FromPrimitive + std::fmt::Debug + AsPrimitive<f64>,
 {
-    let mut mask = Array2::<bool>::from_elem((spec.height, spec.width), false);
+    let (height, width) = canvas.dim();
 
     // build NET
     let net = net_from_polygon(poly);
@@ -102,7 +107,7 @@ where
 
     let mut aet = Aet::new();
 
-    for row in 0..spec.height {
+    for row in 0..height {
         aet.iter_mut().for_each(|p| p.shift_down());
         // 下面的if let和retain顺序不能换，extend进去的还可能立刻被移除
         if let Some(new) = net.get(&row) {
@@ -142,12 +147,11 @@ where
         for (low, high) in internal_range {
             let low_idx = f64::ceil(low) as usize;
             let high_idx = f64::ceil(high) as usize;
-            mask.slice_mut(s![row, low_idx..high_idx])
-                .map_inplace(|b| *b = true)
+            canvas
+                .slice_mut(s![row, low_idx..high_idx])
+                .map_inplace(|c| *c = c.burn(color))
         }
     }
-
-    return mask;
 }
 
 #[cfg(test)]
@@ -157,97 +161,111 @@ mod test {
     #[test]
     fn test_scanline_full_float() {
         let poly = Polygon::from_vec(vec![0.0, 0.0, 8.0, 0.0, 8.0, 10.0, 0.0, 10.0]).unwrap();
-        let spec = CanvasSpec {
-            width: 8,
-            height: 10,
-        };
-        let result = fill_polygon(poly, spec, FillRule::NonZero);
-        println!("{:?}", result);
-        assert!(result[[0, 0]]);
-        assert!(result[[9, 0]]);
-        assert!(result[[5, 5]]);
-        assert!(result[[0, 7]]);
+        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
+        let white = LinSrgba::new(1f32, 1f32, 1f32, 1f32);
+        let mut canvas = Array2::from_elem((10, 8), black);
+        fill_polygon(&mut canvas, &poly, white, FillRule::NonZero);
+        println!("{:?}", canvas);
+        assert_eq!(canvas[[0, 0]], white);
+        assert_eq!(canvas[[9, 0]], white);
+        assert_eq!(canvas[[5, 5]], white);
+        assert_eq!(canvas[[0, 7]], white);
     }
 
     #[test]
     fn test_scanline_full_int() {
         let poly = Polygon::from_vec(vec![0, 0, 8, 0, 8, 10, 0, 10]).unwrap();
-        let spec = CanvasSpec {
-            width: 8,
-            height: 10,
-        };
-        let result = fill_polygon(poly, spec, FillRule::NonZero);
-        println!("{:?}", result);
-        assert!(result[[0, 0]]);
-        assert!(result[[9, 0]]);
-        assert!(result[[5, 5]]);
-        assert!(result[[0, 7]]);
+        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
+        let white = LinSrgba::new(1f32, 1f32, 1f32, 1f32);
+        let mut canvas = Array2::from_elem((10, 8), black);
+        fill_polygon(&mut canvas, &poly, white, FillRule::NonZero);
+        println!("{:?}", canvas);
+        assert_eq!(canvas[[0, 0]], white);
+        assert_eq!(canvas[[9, 0]], white);
+        assert_eq!(canvas[[5, 5]], white);
+        assert_eq!(canvas[[0, 7]], white);
     }
 
     #[test]
     fn test_scanline_triangle_float() {
         // lower triangle
         let poly = Polygon::from_vec(vec![0.0, 0.0, 8.0, 0.0, 8.0, 10.0]).unwrap();
-        let spec = CanvasSpec {
-            width: 8,
-            height: 10,
-        };
-        let result = fill_polygon(poly, spec, FillRule::NonZero);
-        println!("{:?}", result);
-        assert!(result[[0, 1]]);
-        assert!(!result[[9, 0]]);
-        assert!(result[[5, 5]]);
-        assert!(result[[8, 7]]);
+        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
+        let white = LinSrgba::new(1f32, 1f32, 1f32, 1f32);
+        let mut canvas = Array2::from_elem((10, 8), black);
+        fill_polygon(&mut canvas, &poly, white, FillRule::NonZero);
+        println!("{:?}", canvas);
+        assert_eq!(canvas[[0, 1]], white);
+        assert_eq!(canvas[[9, 0]], black);
+        assert_eq!(canvas[[5, 5]], white);
+        assert_eq!(canvas[[8, 7]], white);
     }
 
     #[test]
     fn test_scanline_triangle_int() {
         let poly = Polygon::from_vec(vec![0, 0, 8, 0, 8, 10]).unwrap();
-        let spec = CanvasSpec {
-            width: 8,
-            height: 10,
-        };
-        let result = fill_polygon(poly, spec, FillRule::NonZero);
-        println!("{:?}", result);
-        assert!(result[[0, 1]]);
-        assert!(!result[[9, 0]]);
-        assert!(result[[5, 5]]);
-        assert!(result[[8, 7]]);
+        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
+        let white = LinSrgba::new(1f32, 1f32, 1f32, 1f32);
+        let mut canvas = Array2::from_elem((10, 8), black);
+        fill_polygon(&mut canvas, &poly, white, FillRule::NonZero);
+        println!("{:?}", canvas);
+        assert_eq!(canvas[[0, 1]], white);
+        assert_eq!(canvas[[9, 0]], black);
+        assert_eq!(canvas[[5, 5]], white);
+        assert_eq!(canvas[[8, 7]], white);
     }
 
     #[test]
     fn test_scanline_rule_non_zero() {
         let poly = Polygon::from_vec(vec![0, 0, 20, 0, 3, 15, 13, 3, 8, 3, 18, 15]).unwrap();
-        let spec = CanvasSpec {
-            width: 20,
-            height: 15,
-        };
-        let result = fill_polygon(poly, spec, FillRule::NonZero);
+        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
+        let white = LinSrgba::new(1f32, 1f32, 1f32, 1f32);
+        let mut canvas = Array2::from_elem((15, 20), black);
+        fill_polygon(&mut canvas, &poly, white, FillRule::NonZero);
         for row in 0..15 {
             for col in 0..20 {
-                print!("{} ", if result[[row, col]] { 1 } else { 0 });
+                print!("{} ", if canvas[[row, col]].red > 0.0 { 1 } else { 0 });
             }
             println!()
         }
         // no hole in self-intersect area
-        assert!(result[[7, 10]]);
+        assert_eq!(canvas[[7, 10]], white);
     }
 
     #[test]
     fn test_scanline_rule_even_odd() {
         let poly = Polygon::from_vec(vec![0, 0, 20, 0, 3, 15, 13, 3, 8, 3, 18, 15]).unwrap();
-        let spec = CanvasSpec {
-            width: 20,
-            height: 15,
-        };
-        let result = fill_polygon(poly, spec, FillRule::EvenOdd);
+        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
+        let white = LinSrgba::new(1f32, 1f32, 1f32, 1f32);
+        let mut canvas = Array2::from_elem((15, 20), black);
+        fill_polygon(&mut canvas, &poly, white, FillRule::EvenOdd);
         for row in 0..15 {
             for col in 0..20 {
-                print!("{} ", if result[[row, col]] { 1 } else { 0 });
+                print!("{} ", if canvas[[row, col]].red > 0.0 { 1 } else { 0 });
             }
             println!()
         }
-        // hole in self-intersect area
-        assert!(!result[[7, 10]]);
+        // no hole in self-intersect area
+        assert_eq!(canvas[[7, 10]], black);
+    }
+
+    #[test]
+    fn test_blending() {
+        let square_left = Polygon::from_vec(vec![0, 0, 20, 0, 20, 10, 0, 10]).unwrap();
+        let square_right = Polygon::from_vec(vec![10, 0, 30, 0, 30, 10, 0, 10]).unwrap();
+        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
+        let red = LinSrgba::new(1f32, 0f32, 0f32, 1f32);
+        let green = LinSrgba::new(0f32, 1f32, 0f32, 1f32);
+        let mut canvas = Array2::from_elem((10, 30), black);
+        fill_polygon(&mut canvas, &square_left, red, FillRule::EvenOdd);
+        for row in 0..10 {
+            for col in 0..30 {
+                print!("{} ", if canvas[[row, col]].red > 0.0 { 1 } else { 0 });
+            }
+            println!()
+        }
+        assert_eq!(canvas[[5, 15]], black.burn(red));
+        fill_polygon(&mut canvas, &square_right, green, FillRule::EvenOdd);
+        assert_eq!(canvas[[5, 15]], black.burn(red).burn(green));
     }
 }
