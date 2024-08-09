@@ -1,9 +1,8 @@
 use image::Rgba32FImage;
 use ndarray::Array2;
 use palette::{
-    blend::PreAlpha,
     cast::{ComponentsInto, IntoComponents},
-    rgb::LinSrgb,
+    rgb::LinSrgba,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -50,7 +49,7 @@ impl Canvas {
         }
     }
 
-    pub fn from_array2(array: Array2<PreAlpha<LinSrgb<f32>>>) -> Self {
+    pub fn from_array2(array: Array2<LinSrgba<f32>>) -> Self {
         let (height, width) = array.dim();
         let array = if !array.is_standard_layout() {
             // This will copy array using the standard layout
@@ -70,8 +69,8 @@ impl Canvas {
         Rgba32FImage::from_raw(self.spec.width as u32, self.spec.height as u32, self.buff).unwrap()
     }
 
-    pub fn into_array2(self) -> Array2<PreAlpha<LinSrgb>> {
-        let color_vec: Vec<PreAlpha<LinSrgb>> = self.buff.components_into();
+    pub fn into_array2(self) -> Array2<LinSrgba> {
+        let color_vec: Vec<LinSrgba> = self.buff.components_into();
         Array2::from_shape_vec((self.spec.height, self.spec.width), color_vec).unwrap()
     }
 }
@@ -81,7 +80,7 @@ mod tests {
     use super::*;
     use image::Rgba32FImage;
     use ndarray::Array2;
-    use palette::{blend::PreAlpha, rgb::LinSrgb};
+    use palette::rgb::LinSrgba;
 
     #[test]
     fn test_canvas_creation() {
@@ -126,9 +125,9 @@ mod tests {
     fn test_from_array2() {
         let width = 10;
         let height = 20;
-        let array = Array2::<PreAlpha<LinSrgb<f32>>>::from_elem(
+        let array = Array2::<LinSrgba<f32>>::from_elem(
             (height, width),
-            PreAlpha::new(LinSrgb::new(0f32, 0f32, 0f32), 0f32),
+            LinSrgba::new(0f32, 0f32, 0f32, 0f32),
         );
         let canvas = Canvas::from_array2(array);
         assert_eq!(canvas.get_spec().width, width);
