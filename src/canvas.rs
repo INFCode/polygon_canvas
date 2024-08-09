@@ -28,12 +28,16 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    pub fn from_spec(spec: &CanvasSpec) -> Self {
+    pub fn from_spec(spec: CanvasSpec) -> Self {
         // TODO: add check to spec to avoid panic when unwraping the Result from from_shape_vec
         Canvas {
             buff: vec![0f32; spec.width * spec.height * 4], // RGBA
-            spec: *spec,
+            spec,
         }
+    }
+
+    pub fn from_wh(width: usize, height: usize) -> Self {
+        Self::from_spec(CanvasSpec::new(width, height))
     }
 
     pub fn get_spec(&self) -> CanvasSpec {
@@ -85,7 +89,7 @@ mod tests {
     #[test]
     fn test_canvas_creation() {
         let spec = CanvasSpec::new(10, 20);
-        let canvas = Canvas::from_spec(&spec);
+        let canvas = Canvas::from_spec(spec);
         assert_eq!(canvas.get_spec().width, 10);
         assert_eq!(canvas.get_spec().height, 20);
         assert_eq!(canvas.buff.len(), 10 * 20 * 4);
@@ -94,7 +98,7 @@ mod tests {
     #[test]
     fn test_into_image() {
         let spec = CanvasSpec::new(10, 20);
-        let canvas = Canvas::from_spec(&spec);
+        let canvas = Canvas::from_spec(spec);
         let image = canvas.into_image();
         assert_eq!(image.width(), 10);
         assert_eq!(image.height(), 20);
@@ -104,7 +108,7 @@ mod tests {
     #[test]
     fn test_into_array2() {
         let spec = CanvasSpec::new(10, 20);
-        let canvas = Canvas::from_spec(&spec);
+        let canvas = Canvas::from_spec(spec);
         let array = canvas.into_array2();
         assert_eq!(array.shape(), &[20, 10]);
     }
@@ -138,7 +142,7 @@ mod tests {
     #[test]
     fn test_conversion_round_trip() {
         let spec = CanvasSpec::new(10, 20);
-        let canvas = Canvas::from_spec(&spec);
+        let canvas = Canvas::from_spec(spec);
 
         // Convert to image and back
         let image = canvas.clone().into_image();
@@ -156,7 +160,7 @@ mod tests {
     #[test]
     fn test_image_modification() {
         let spec = CanvasSpec::new(10, 20);
-        let mut canvas = Canvas::from_spec(&spec);
+        let mut canvas = Canvas::from_spec(spec);
 
         // Modify a specific pixel
         let index = (5 * spec.width + 3) * 4;
@@ -177,7 +181,7 @@ mod tests {
     #[test]
     fn test_array_modification() {
         let spec = CanvasSpec::new(30, 20);
-        let mut canvas = Canvas::from_spec(&spec);
+        let mut canvas = Canvas::from_spec(spec);
 
         // Modify a specific pixel
         let index = (11 * spec.width + 2) * 4;

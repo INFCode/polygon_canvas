@@ -8,7 +8,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new(spec: &CanvasSpec, image_path: &Path) -> Option<Self> {
+    pub fn new(spec: CanvasSpec, image_path: &Path) -> Option<Self> {
         Some(Self {
             canvas: Canvas::from_spec(spec),
             prev_score: 0f64,
