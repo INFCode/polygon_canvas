@@ -4,7 +4,8 @@ use std::usize;
 use crate::geometry::{Line, Polygon};
 use crate::nums::RoundToUsize;
 use crate::{canvas::CanvasSpec, geometry::Point};
-use ndarray::Array2;
+use itertools::Itertools;
+use ndarray::{s, Array2};
 use num_traits::{AsPrimitive, FromPrimitive, Num};
 
 // the internal data structre for scan line algorithm
@@ -103,32 +104,46 @@ where
 
     for row in 0..spec.height {
         aet.iter_mut().for_each(|p| p.shift_down());
+        // 下面的if let和retain顺序不能换，extend进去的还可能立刻被移除
         if let Some(new) = net.get(&row) {
             aet.extend(new.iter().cloned());
         }
         aet.retain(|l| l.y_max >= row);
         if aet.len() == 0 {
+            // 快速跳过空行
             continue;
         }
-        //println!("aet = {:?}", aet);
 
-        let mut points = aet
+        let internal_range = aet
             .iter()
             .map(|e| e.get_intersect(rule))
-            .collect::<Vec<(f64, i8)>>();
-        points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+            // 按照交点排序
+            .sorted_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
+            .scan(0, |prefix_sum, point| {
+                *prefix_sum += point.1 as i32; // 更新前缀和
+                Some((point.0, rule.check(*prefix_sum))) // rule.check判断该点右侧是否是多边形内部
+            })
+            // non-zero rule 会产生连续的true和false
+            // 连续的T/F除了第一个以外都无意义，删除
+            .dedup_by(|p1, p2| p1.1 == p2.1)
+            // 创建一个滑动窗口
+            .tuple_windows()
+            //
+            .filter_map(|(current, next)| {
+                if current.1 {
+                    // 如果 current 是 true
+                    Some((current.0, next.0)) // 返回 (current.0, next.0)
+                } else {
+                    None
+                }
+            });
         //println!("points = {:?}", points);
         //println!();
-
-        let mut idx = 0;
-        let mut track = 0;
-        for col in 0..spec.width {
-            while idx < points.len() && col as f64 >= points[idx].0 {
-                track += points[idx].1 as i32;
-                println!("{} {}", col, track);
-                idx += 1;
-            }
-            mask[[row, col]] = rule.check(track);
+        for (low, high) in internal_range {
+            let low_idx = f64::ceil(low) as usize;
+            let high_idx = f64::ceil(high) as usize;
+            mask.slice_mut(s![row, low_idx..high_idx])
+                .map_inplace(|b| *b = true)
         }
     }
 
