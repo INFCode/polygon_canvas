@@ -7,7 +7,10 @@ edition = "2021"
 
 [dependencies]
 image = "0.25.2"
+image-compare = "0.4.1"
+img_hash = "3.2.0"
 itertools = "0.13.0"
 ndarray = "0.15.6"
 num-traits = "0.2.19"
 palette = "0.7.6"
+rayon = "1.10.0"
