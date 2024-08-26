@@ -123,7 +123,7 @@ pub fn fill_polygon<T>(
             .iter()
             .map(|e| e.get_intersect(rule))
             // 按照交点排序
-            .sorted_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
+            .sorted_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
             .scan(0, |prefix_sum, point| {
                 *prefix_sum += point.1 as i32; // 更新前缀和
                 Some((point.0, rule.check(*prefix_sum))) // rule.check判断该点右侧是否是多边形内部
@@ -131,22 +131,11 @@ pub fn fill_polygon<T>(
             // non-zero rule 会产生连续的true和false
             // 连续的T/F除了第一个以外都无意义，删除
             .dedup_by(|p1, p2| p1.1 == p2.1)
-            // 创建一个滑动窗口
-            .tuple_windows()
-            //
-            .filter_map(|(current, next)| {
-                if current.1 {
-                    // 如果 current 是 true
-                    Some((current.0, next.0)) // 返回 (current.0, next.0)
-                } else {
-                    None
-                }
-            });
-        //println!("points = {:?}", points);
+            .map(|p| f64::ceil(p.0) as usize)
+            .tuples::<(_, _)>();
+
         //println!();
-        for (low, high) in internal_range {
-            let low_idx = f64::ceil(low) as usize;
-            let high_idx = f64::ceil(high) as usize;
+        for (low_idx, high_idx) in internal_range {
             canvas
                 .slice_mut(s![row, low_idx..high_idx])
                 .map_inplace(|c| *c = c.burn(color))
