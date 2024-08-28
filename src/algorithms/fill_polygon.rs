@@ -4,9 +4,10 @@ use std::usize;
 use crate::geometry::Point;
 use crate::geometry::{Line, Polygon};
 use crate::nums::RoundToUsize;
+use image::RgbaImage;
 use itertools::Itertools;
-use ndarray::{s, Array2};
 use num_traits::{AsPrimitive, FromPrimitive, Num};
+use palette::Srgba;
 use palette::{blend::Blend, rgb::LinSrgba};
 
 // the internal data structre for scan line algorithm
@@ -91,14 +92,17 @@ impl FillRule {
 }
 
 pub fn fill_polygon<T>(
-    canvas: &mut Array2<LinSrgba>,
+    canvas: &mut RgbaImage,
     poly: &Polygon<T>,
-    color: LinSrgba,
+    polygon_color: LinSrgba,
     rule: FillRule,
 ) where
     T: Copy + Num + PartialOrd + RoundToUsize + FromPrimitive + std::fmt::Debug + AsPrimitive<f64>,
 {
-    let (height, width) = canvas.dim();
+    let (height, width) = {
+        let (h, w) = canvas.dimensions();
+        (h as usize, w as usize)
+    };
 
     // build NET
     let net = net_from_polygon(poly);
@@ -135,10 +139,15 @@ pub fn fill_polygon<T>(
             .tuples::<(_, _)>();
 
         //println!();
+
+        // 给多边形内部上色
         for (low_idx, high_idx) in internal_range {
-            canvas
-                .slice_mut(s![row, low_idx..high_idx])
-                .map_inplace(|c| *c = c.burn(color))
+            for col in low_idx..high_idx {
+                let pixel = canvas.get_pixel_mut(col as u32, row as u32);
+                let bg_color: LinSrgba<f32> = <&mut Srgba<u8>>::from(&mut pixel.0).into_linear();
+                let blended = bg_color.multiply(polygon_color);
+                pixel.0 = Srgba::from_linear(blended).into();
+            }
         }
     }
 }
