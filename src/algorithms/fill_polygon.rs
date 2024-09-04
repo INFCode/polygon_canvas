@@ -94,15 +94,12 @@ impl FillRule {
 pub fn fill_polygon<T>(
     canvas: &mut RgbaImage,
     poly: &Polygon<T>,
-    polygon_color: LinSrgba,
+    polygon_color: LinSrgba<f64>,
     rule: FillRule,
 ) where
     T: Copy + Num + PartialOrd + RoundToUsize + FromPrimitive + std::fmt::Debug + AsPrimitive<f64>,
 {
-    let (height, width) = {
-        let (h, w) = canvas.dimensions();
-        (h as usize, w as usize)
-    };
+    let height = canvas.height() as usize;
 
     // build NET
     let net = net_from_polygon(poly);
@@ -113,11 +110,10 @@ pub fn fill_polygon<T>(
 
     for row in 0..height {
         aet.iter_mut().for_each(|p| p.shift_down());
-        // 下面的if let和retain顺序不能换，extend进去的还可能立刻被移除
+        aet.retain(|l| l.y_max > row);
         if let Some(new) = net.get(&row) {
             aet.extend(new.iter().cloned());
         }
-        aet.retain(|l| l.y_max >= row);
         if aet.len() == 0 {
             // 快速跳过空行
             continue;
@@ -144,8 +140,12 @@ pub fn fill_polygon<T>(
         for (low_idx, high_idx) in internal_range {
             for col in low_idx..high_idx {
                 let pixel = canvas.get_pixel_mut(col as u32, row as u32);
-                let bg_color: LinSrgba<f32> = <&mut Srgba<u8>>::from(&mut pixel.0).into_linear();
+                let bg_color: LinSrgba<f64> = <&Srgba<u8>>::from(&pixel.0).into_linear();
                 let blended = bg_color.multiply(polygon_color);
+                println!(
+                    "bg_color = {:?}, fg_color = {:?}, mixed_color = {:?}",
+                    bg_color, polygon_color, blended
+                );
                 pixel.0 = Srgba::from_linear(blended).into();
             }
         }
@@ -155,115 +155,123 @@ pub fn fill_polygon<T>(
 #[cfg(test)]
 mod test {
     use super::*;
+    use approx::assert_relative_eq;
+    use image::Rgba;
+
+    fn assert_color_at(img: &RgbaImage, row: u32, col: u32, color: &LinSrgba<f64>) {
+        let pixel = img.get_pixel(col, row);
+        let linear_color: LinSrgba<f64> = <&Srgba<u8>>::from(&pixel.0).into_linear();
+        assert_relative_eq!(linear_color, color);
+    }
+
+    fn empty_image() -> RgbaImage {
+        RgbaImage::from_pixel(30, 20, Rgba([255, 255, 255, 255]))
+    }
 
     #[test]
     fn test_scanline_full_float() {
         let poly = Polygon::from_vec(vec![0.0, 0.0, 8.0, 0.0, 8.0, 10.0, 0.0, 10.0]).unwrap();
-        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
-        let white = LinSrgba::new(1f32, 1f32, 1f32, 1f32);
-        let mut canvas = Array2::from_elem((10, 8), black);
-        fill_polygon(&mut canvas, &poly, white, FillRule::NonZero);
+        let black = LinSrgba::new(0f64, 0f64, 0f64, 1f64);
+        let mut canvas = empty_image();
+        fill_polygon(&mut canvas, &poly, black, FillRule::NonZero);
         println!("{:?}", canvas);
-        assert_eq!(canvas[[0, 0]], white);
-        assert_eq!(canvas[[9, 0]], white);
-        assert_eq!(canvas[[5, 5]], white);
-        assert_eq!(canvas[[0, 7]], white);
+        assert_color_at(&canvas, 0, 0, &black);
+        assert_color_at(&canvas, 9, 0, &black);
+        assert_color_at(&canvas, 5, 5, &black);
+        assert_color_at(&canvas, 0, 7, &black);
     }
 
     #[test]
     fn test_scanline_full_int() {
         let poly = Polygon::from_vec(vec![0, 0, 8, 0, 8, 10, 0, 10]).unwrap();
-        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
-        let white = LinSrgba::new(1f32, 1f32, 1f32, 1f32);
-        let mut canvas = Array2::from_elem((10, 8), black);
-        fill_polygon(&mut canvas, &poly, white, FillRule::NonZero);
+        let black = LinSrgba::new(0f64, 0f64, 0f64, 1f64);
+        let mut canvas = empty_image();
+        fill_polygon(&mut canvas, &poly, black, FillRule::NonZero);
         println!("{:?}", canvas);
-        assert_eq!(canvas[[0, 0]], white);
-        assert_eq!(canvas[[9, 0]], white);
-        assert_eq!(canvas[[5, 5]], white);
-        assert_eq!(canvas[[0, 7]], white);
+        assert_color_at(&canvas, 0, 0, &black);
+        assert_color_at(&canvas, 9, 0, &black);
+        assert_color_at(&canvas, 5, 5, &black);
+        assert_color_at(&canvas, 0, 7, &black);
     }
 
     #[test]
     fn test_scanline_triangle_float() {
         // lower triangle
         let poly = Polygon::from_vec(vec![0.0, 0.0, 8.0, 0.0, 8.0, 10.0]).unwrap();
-        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
-        let white = LinSrgba::new(1f32, 1f32, 1f32, 1f32);
-        let mut canvas = Array2::from_elem((10, 8), black);
-        fill_polygon(&mut canvas, &poly, white, FillRule::NonZero);
+        let black = LinSrgba::new(0f64, 0f64, 0f64, 1f64);
+        let white = LinSrgba::new(1f64, 1f64, 1f64, 1f64);
+        let mut canvas = empty_image();
+        fill_polygon(&mut canvas, &poly, black, FillRule::NonZero);
         println!("{:?}", canvas);
-        assert_eq!(canvas[[0, 1]], white);
-        assert_eq!(canvas[[9, 0]], black);
-        assert_eq!(canvas[[5, 5]], white);
-        assert_eq!(canvas[[8, 7]], white);
+        assert_color_at(&canvas, 0, 0, &black);
+        assert_color_at(&canvas, 9, 0, &white);
+        assert_color_at(&canvas, 5, 5, &black);
+        assert_color_at(&canvas, 0, 7, &black);
     }
-
     #[test]
     fn test_scanline_triangle_int() {
         let poly = Polygon::from_vec(vec![0, 0, 8, 0, 8, 10]).unwrap();
-        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
-        let white = LinSrgba::new(1f32, 1f32, 1f32, 1f32);
-        let mut canvas = Array2::from_elem((10, 8), black);
-        fill_polygon(&mut canvas, &poly, white, FillRule::NonZero);
+        let black = LinSrgba::new(0f64, 0f64, 0f64, 1f64);
+        let white = LinSrgba::new(1f64, 1f64, 1f64, 1f64);
+        let mut canvas = empty_image();
+        fill_polygon(&mut canvas, &poly, black, FillRule::NonZero);
         println!("{:?}", canvas);
-        assert_eq!(canvas[[0, 1]], white);
-        assert_eq!(canvas[[9, 0]], black);
-        assert_eq!(canvas[[5, 5]], white);
-        assert_eq!(canvas[[8, 7]], white);
+        assert_color_at(&canvas, 0, 1, &black);
+        assert_color_at(&canvas, 9, 0, &white);
+        assert_color_at(&canvas, 5, 5, &black);
+        assert_color_at(&canvas, 8, 7, &black);
     }
 
     #[test]
     fn test_scanline_rule_non_zero() {
         let poly = Polygon::from_vec(vec![0, 0, 20, 0, 3, 15, 13, 3, 8, 3, 18, 15]).unwrap();
-        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
-        let white = LinSrgba::new(1f32, 1f32, 1f32, 1f32);
-        let mut canvas = Array2::from_elem((15, 20), black);
-        fill_polygon(&mut canvas, &poly, white, FillRule::NonZero);
+        let black = LinSrgba::new(0f64, 0f64, 0f64, 1f64);
+        let mut canvas = empty_image();
+        fill_polygon(&mut canvas, &poly, black, FillRule::NonZero);
         for row in 0..15 {
             for col in 0..20 {
-                print!("{} ", if canvas[[row, col]].red > 0.0 { 1 } else { 0 });
+                print!("{} ", (canvas.get_pixel(col, row).0[0] > 0) as u8)
             }
             println!()
         }
         // no hole in self-intersect area
-        assert_eq!(canvas[[7, 10]], white);
+        assert_color_at(&canvas, 7, 10, &black);
     }
 
     #[test]
     fn test_scanline_rule_even_odd() {
         let poly = Polygon::from_vec(vec![0, 0, 20, 0, 3, 15, 13, 3, 8, 3, 18, 15]).unwrap();
-        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
-        let white = LinSrgba::new(1f32, 1f32, 1f32, 1f32);
-        let mut canvas = Array2::from_elem((15, 20), black);
-        fill_polygon(&mut canvas, &poly, white, FillRule::EvenOdd);
+        let black = LinSrgba::new(0f64, 0f64, 0f64, 1f64);
+        let white = LinSrgba::new(1f64, 1f64, 1f64, 1f64);
+        let mut canvas = empty_image();
+        fill_polygon(&mut canvas, &poly, black, FillRule::EvenOdd);
         for row in 0..15 {
             for col in 0..20 {
-                print!("{} ", if canvas[[row, col]].red > 0.0 { 1 } else { 0 });
+                print!("{} ", (canvas.get_pixel(col, row).0[0] > 0) as u8);
             }
             println!()
         }
         // no hole in self-intersect area
-        assert_eq!(canvas[[7, 10]], black);
+        assert_color_at(&canvas, 7, 10, &white);
     }
 
     #[test]
     fn test_blending() {
         let square_left = Polygon::from_vec(vec![0, 0, 20, 0, 20, 10, 0, 10]).unwrap();
         let square_right = Polygon::from_vec(vec![10, 0, 30, 0, 30, 10, 0, 10]).unwrap();
-        let black = LinSrgba::new(0f32, 0f32, 0f32, 1f32);
-        let red = LinSrgba::new(1f32, 0f32, 0f32, 1f32);
-        let green = LinSrgba::new(0f32, 1f32, 0f32, 1f32);
-        let mut canvas = Array2::from_elem((10, 30), black);
+        let white = LinSrgba::new(1f64, 1f64, 1f64, 1f64);
+        let red = LinSrgba::new(1f64, 0f64, 0f64, 1f64);
+        let green = LinSrgba::new(0f64, 1f64, 0f64, 1f64);
+        let mut canvas = empty_image();
         fill_polygon(&mut canvas, &square_left, red, FillRule::EvenOdd);
         for row in 0..10 {
             for col in 0..30 {
-                print!("{} ", if canvas[[row, col]].red > 0.0 { 1 } else { 0 });
+                print!("{} ", (canvas.get_pixel(col, row).0[0] > 0) as u8);
             }
             println!()
         }
-        assert_eq!(canvas[[5, 15]], black.burn(red));
+        assert_color_at(&canvas, 5, 15, &white.multiply(red));
         fill_polygon(&mut canvas, &square_right, green, FillRule::EvenOdd);
-        assert_eq!(canvas[[5, 15]], black.burn(red).burn(green));
+        assert_color_at(&canvas, 5, 15, &white.multiply(red).multiply(green));
     }
 }

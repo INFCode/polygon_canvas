@@ -1,18 +1,20 @@
-use std::result;
-
-use image::DynamicImage;
+use image::{Rgba, RgbaImage};
 use palette::rgb::LinSrgba;
 use polygon_canvas::{
     algorithms::fill_polygon::{fill_polygon, FillRule},
-    canvas::Canvas,
     geometry::Polygon,
 };
 
 fn main() {
     let blk_size = 50;
-    let canvas = Canvas::from_wh(4 * blk_size, 3 * blk_size);
+    let num_row = 3;
+    let num_col = 4;
 
-    let mut canvas_arr = canvas.into_array2();
+    let mut canvas = RgbaImage::from_pixel(
+        num_col * blk_size,
+        num_row * blk_size,
+        Rgba([255, 255, 255, 255]),
+    );
     for row_blk in 0..3 {
         for col_blk in 0..4 {
             let row_offset = row_blk * blk_size;
@@ -30,19 +32,17 @@ fn main() {
             .unwrap();
             //println!("{:?}", square);
             let color = LinSrgba::new(
-                0.2 + row_blk as f32 * 0.35,
-                0.9 - col_blk as f32 * 0.25,
-                0.7,
-                1f32,
+                0.2 + row_blk as f64 * 0.35,
+                0.9 - col_blk as f64 * 0.25,
+                0.7f64,
+                1f64,
             );
 
-            fill_polygon(&mut canvas_arr, &square, color, FillRule::NonZero);
+            fill_polygon(&mut canvas, &square, color, FillRule::NonZero);
         }
     }
 
-    let image = Canvas::from_array2(canvas_arr).into_image();
-    let _ = DynamicImage::ImageRgba32F(image)
-        .to_rgba8()
+    let _ = canvas
         .save_with_format("./render_polygon.png", image::ImageFormat::Png)
         .or_else(|err| -> Result<(), ()> {
             println!("{}", err);
